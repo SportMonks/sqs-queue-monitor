@@ -15,7 +15,7 @@ it('injects queue_monitor fields for monitored connections', function () {
 
     $result = $injector('sqs', 'default', [
         'displayName' => 'MyJob',
-        'data' => ['command' => serialize(new stdClass())],
+        'data' => ['command' => new stdClass()],
     ]);
 
     expect($result)->toHaveKey('queue_monitor')
@@ -33,18 +33,18 @@ it('extracts group_name from messageGroup property on the job', function () {
 
     $result = $injector('sqs', 'default', [
         'displayName' => 'MyJob',
-        'data' => ['command' => serialize($job)],
+        'data' => ['command' => $job],
     ]);
 
     expect($result['queue_monitor']['group_name'])->toBe('openf1-low');
 });
 
-it('returns null group_name when the command cannot be deserialized', function () {
+it('returns null group_name when command is not an object', function () {
     $injector = new PayloadInjector(['sqs']);
 
     $result = $injector('sqs', 'default', [
         'displayName' => 'MyJob',
-        'data' => ['command' => 'not-valid-serialized-data'],
+        'data' => ['command' => 'not-an-object'],
     ]);
 
     expect($result['queue_monitor']['group_name'])->toBeNull();
@@ -52,7 +52,7 @@ it('returns null group_name when the command cannot be deserialized', function (
 
 it('generates a unique tracker_id per invocation', function () {
     $injector = new PayloadInjector(['sqs']);
-    $payload = ['displayName' => 'MyJob', 'data' => ['command' => serialize(new stdClass())]];
+    $payload = ['displayName' => 'MyJob', 'data' => ['command' => new stdClass()]];
 
     $first  = $injector('sqs', 'default', $payload);
     $second = $injector('sqs', 'default', $payload);

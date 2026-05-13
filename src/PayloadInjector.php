@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace QueueMonitor;
 
 use Illuminate\Support\Str;
-use Throwable;
 
 class PayloadInjector
 {
@@ -33,16 +32,12 @@ class PayloadInjector
     /** @param array<string, mixed> $payload */
     private function extractGroupName(array $payload): ?string
     {
-        try {
-            set_error_handler(static fn () => true);
-            $command = unserialize($payload['data']['command'] ?? '');
-            restore_error_handler();
+        $command = $payload['data']['command'] ?? null;
 
-            return ($command !== false && property_exists($command, 'messageGroup'))
-                ? $command->messageGroup
-                : null;
-        } catch (Throwable) {
+        if (! is_object($command)) {
             return null;
         }
+
+        return property_exists($command, 'messageGroup') ? $command->messageGroup : null;
     }
 }
