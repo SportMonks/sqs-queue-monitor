@@ -23,7 +23,7 @@
         <div id="breadcrumb" class="mb-4 text-xs text-gray-500"></div>
 
         <div id="table-container" class="overflow-x-auto rounded-lg border border-gray-800">
-            <table class="w-full">
+            <table class="w-full min-w-[640px]">
                 <thead id="table-head" class="bg-gray-900 text-gray-400 uppercase text-xs"></thead>
                 <tbody id="table-body" class="divide-y divide-gray-800"></tbody>
             </table>
@@ -158,6 +158,11 @@
     }
     setInterval(sweep, SWEEP_INTERVAL_MS);
 
+    document.getElementById('table-body').addEventListener('click', e => {
+        const row = e.target.closest('tr[data-href]');
+        if (row) { location.hash = row.dataset.href; }
+    });
+
     function parseHash() {
         const params = {};
         location.hash.slice(1).split('&').filter(Boolean).forEach(p => {
@@ -189,6 +194,14 @@
         return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
     }
 
+    function avgWaitMs(arr) {
+        const vals = arr
+            .filter(j => j.status === 'processed' && j.dispatched_at && j.processed_at && j.processing_time_ms !== null)
+            .map(j => new Date(j.processed_at).getTime() - j.processing_time_ms - new Date(j.dispatched_at).getTime());
+        if (! vals.length) { return null; }
+        return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+    }
+
     function unprocessedCount(arr) {
         return arr.filter(j => j.status === 'pending' || j.status === 'stale').length;
     }
@@ -213,23 +226,31 @@
         return `<span class="${map[status] ?? ''}">${status}</span>`;
     }
 
-    function navLink(label, params) {
-        const href = '#' + Object.entries(params)
+    function buildHash(params) {
+        return Object.entries(params)
             .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
             .join('&');
-        return `<a href="${href}" class="text-blue-400 hover:underline">${label}</a>`;
+    }
+
+    function navLink(label, params) {
+        return `<a href="#${buildHash(params)}" class="text-blue-400 hover:underline">${label}</a>`;
     }
 
     function setThead(cols) {
         document.getElementById('table-head').innerHTML =
-            '<tr>' + cols.map(c => `<th class="px-4 py-3 text-left">${c}</th>`).join('') + '</tr>';
+            '<tr>' + cols.map(c => `<th class="px-2 py-2 sm:px-4 sm:py-3 text-left">${c}</th>`).join('') + '</tr>';
     }
 
     function setTbody(rows) {
         const tbody = document.getElementById('table-body');
-        tbody.innerHTML = rows.map(cells =>
-            '<tr class="hover:bg-gray-900">' + cells.map(c => `<td class="px-4 py-3">${c}</td>`).join('') + '</tr>'
-        ).join('');
+        tbody.innerHTML = rows.map(row => {
+            const cells = Array.isArray(row) ? row : row.cells;
+            const href  = Array.isArray(row) ? null : (row.href ?? null);
+            const tr    = href
+                ? `<tr class="hover:bg-gray-900 cursor-pointer" data-href="${href}">`
+                : `<tr class="hover:bg-gray-900">`;
+            return tr + cells.map(c => `<td class="px-2 py-2 sm:px-4 sm:py-3 whitespace-nowrap">${c}</td>`).join('') + '</tr>';
+        }).join('');
         const empty = document.getElementById('empty-state');
         const table = document.getElementById('table-container');
         if (rows.length === 0) { table.classList.add('hidden'); empty.classList.remove('hidden'); }
@@ -265,7 +286,7 @@
                 ? 'bg-red-500' : 'bg-yellow-500';
             const active = name === state.active ? 'ring-1 ring-blue-400' : '';
             const hash = parseHash();
-            return `<a href="#${new URLSearchParams({ ...hash, connection: name }).toString()}"
+            return `<a href="#${buildHash({ ...hash, connection: name })}"
                         class="flex items-center gap-1 px-3 py-1 rounded bg-gray-800 ${active} hover:bg-gray-700">
                         <span class="w-2 h-2 rounded-full ${dot}"></span>${name}
                     </a>`;
@@ -303,16 +324,19 @@
             if (! queueMap[q]) { queueMap[q] = []; }
             queueMap[q].push(j);
         });
-        setThead(['Queue', 'Jobs tracked', 'Oldest unprocessed', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', '']);
-        setTbody(Object.entries(queueMap).map(([q, qjobs]) => [
-            q,
-            qjobs.length,
-            fmtDt(oldestPending(qjobs)),
-            unprocessedCount(qjobs),
-            fmtDt(latestDispatched(qjobs)),
-            fmtMs(avgMs(qjobs.filter(j => j.status === 'processed'))),
-            navLink('View →', { connection: state.active, queue: q }),
-        ]));
+        setThead(['Queue', 'Jobs tracked', 'Oldest unprocessed', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time']);
+        setTbody(Object.entries(queueMap).map(([q, qjobs]) => ({
+            href: buildHash({ connection: state.active, queue: q }),
+            cells: [
+                q,
+                qjobs.length,
+                fmtDt(oldestPending(qjobs)),
+                unprocessedCount(qjobs),
+                fmtDt(latestDispatched(qjobs)),
+                fmtMs(avgMs(qjobs.filter(j => j.status === 'processed'))),
+                fmtMs(avgWaitMs(qjobs)),
+            ],
+        })));
     }
 
     function renderQueueView(hash) {
@@ -323,16 +347,19 @@
             if (! groupMap[g]) { groupMap[g] = []; }
             groupMap[g].push(j);
         });
-        setThead(['Group', 'Jobs tracked', 'Oldest unprocessed', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', '']);
-        setTbody(Object.entries(groupMap).map(([g, gjobs]) => [
-            g,
-            gjobs.length,
-            fmtDt(oldestPending(gjobs)),
-            unprocessedCount(gjobs),
-            fmtDt(latestDispatched(gjobs)),
-            fmtMs(avgMs(gjobs.filter(j => j.status === 'processed'))),
-            navLink('View →', { connection: state.active, queue: hash.queue, group: g === '(none)' ? '' : g }),
-        ]));
+        setThead(['Group', 'Jobs tracked', 'Oldest unprocessed', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time']);
+        setTbody(Object.entries(groupMap).map(([g, gjobs]) => ({
+            href: buildHash({ connection: state.active, queue: hash.queue, group: g === '(none)' ? '' : g }),
+            cells: [
+                g,
+                gjobs.length,
+                fmtDt(oldestPending(gjobs)),
+                unprocessedCount(gjobs),
+                fmtDt(latestDispatched(gjobs)),
+                fmtMs(avgMs(gjobs.filter(j => j.status === 'processed'))),
+                fmtMs(avgWaitMs(gjobs)),
+            ],
+        })));
     }
 
     function renderGroupView(hash) {
@@ -346,16 +373,19 @@
             if (! jobMap[n]) { jobMap[n] = []; }
             jobMap[n].push(j);
         });
-        setThead(['Job', 'Amount tracked', 'Oldest unprocessed', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', '']);
-        setTbody(Object.entries(jobMap).map(([n, njobs]) => [
-            n,
-            njobs.length,
-            fmtDt(oldestPending(njobs)),
-            unprocessedCount(njobs),
-            fmtDt(latestDispatched(njobs)),
-            fmtMs(avgMs(njobs.filter(j => j.status === 'processed'))),
-            navLink('View →', { connection: state.active, queue: hash.queue, group: hash.group, job: n }),
-        ]));
+        setThead(['Job', 'Amount tracked', 'Oldest unprocessed', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time']);
+        setTbody(Object.entries(jobMap).map(([n, njobs]) => ({
+            href: buildHash({ connection: state.active, queue: hash.queue, group: hash.group, job: n }),
+            cells: [
+                n,
+                njobs.length,
+                fmtDt(oldestPending(njobs)),
+                unprocessedCount(njobs),
+                fmtDt(latestDispatched(njobs)),
+                fmtMs(avgMs(njobs.filter(j => j.status === 'processed'))),
+                fmtMs(avgWaitMs(njobs)),
+            ],
+        })));
     }
 
     function renderJobDetail(hash) {
