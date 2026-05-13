@@ -158,11 +158,6 @@
     }
     setInterval(sweep, SWEEP_INTERVAL_MS);
 
-    document.getElementById('table-body').addEventListener('click', e => {
-        const row = e.target.closest('tr[data-href]');
-        if (row) { location.hash = row.dataset.href; }
-    });
-
     function parseHash() {
         const params = {};
         location.hash.slice(1).split('&').filter(Boolean).forEach(p => {
@@ -218,6 +213,11 @@
         return withDate.reduce((a, b) => a.dispatched_at > b.dispatched_at ? a : b).dispatched_at;
     }
 
+    function shortName(name) {
+        if (! name) { return name; }
+        return name.split(/[\\\/]/).pop() ?? name;
+    }
+
     function statusBadge(status) {
         const map = {
             pending: 'text-yellow-400', processed: 'text-green-400',
@@ -247,7 +247,7 @@
             const cells = Array.isArray(row) ? row : row.cells;
             const href  = Array.isArray(row) ? null : (row.href ?? null);
             const tr    = href
-                ? `<tr class="hover:bg-gray-900 cursor-pointer" data-href="${href}">`
+                ? `<tr class="hover:bg-gray-900 cursor-pointer" onclick="location.hash='${href}'">`
                 : `<tr class="hover:bg-gray-900">`;
             return tr + cells.map(c => `<td class="px-2 py-2 sm:px-4 sm:py-3 whitespace-nowrap">${c}</td>`).join('') + '</tr>';
         }).join('');
@@ -311,7 +311,7 @@
             parts.push(navLink(hash.group || '(none)', { ...base, queue: hash.queue, group: hash.group }));
         }
         if (hash.job) {
-            parts.push(`<span class="text-white">${hash.job}</span>`);
+            parts.push(`<span class="text-white" title="${hash.job}">${shortName(hash.job)}</span>`);
         }
         document.getElementById('breadcrumb').innerHTML = parts.join(' <span class="text-gray-600">›</span> ');
     }
@@ -377,7 +377,7 @@
         setTbody(Object.entries(jobMap).map(([n, njobs]) => ({
             href: buildHash({ connection: state.active, queue: hash.queue, group: hash.group, job: n }),
             cells: [
-                n,
+                `<span title="${n}">${shortName(n)}</span>`,
                 njobs.length,
                 fmtDt(oldestPending(njobs)),
                 unprocessedCount(njobs),
@@ -397,12 +397,15 @@
                 j.display_name === hash.job
             )
             .sort((a, b) => (b.dispatched_at ?? '').localeCompare(a.dispatched_at ?? ''));
-        setThead(['Job', 'Dispatched at', 'Processed at', 'Processing time', 'Status']);
+        setThead(['Job', 'Dispatched at', 'Processed at', 'Processing time', 'Wait time', 'Status']);
         setTbody(all.map(j => [
-            j.display_name ?? '—',
+            `<span title="${j.display_name ?? ''}">${shortName(j.display_name) ?? '—'}</span>`,
             fmtDt(j.dispatched_at),
             fmtDt(j.processed_at),
             fmtMs(j.processing_time_ms),
+            j.dispatched_at && j.processed_at && j.processing_time_ms !== null
+                ? fmtMs(new Date(j.processed_at).getTime() - j.processing_time_ms - new Date(j.dispatched_at).getTime())
+                : '—',
             statusBadge(j.status),
         ]));
     }
