@@ -1,0 +1,25 @@
+{
+    "name": "sportmonks/sqs-queue-monitor",
+    "description": "Live SQS queue monitoring via Laravel Reverb",
+    "type": "library",
+    "require": {
+        "php": "^8.2",
+        "illuminate/broadcasting": "^11.0 || ^12.0 || ^13.0",
+        "illuminate/queue": "^11.0 || ^12.0 || ^13.0",
+        "illuminate/support": "^11.0 || ^12.0 || ^13.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "QueueMonitor\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "QueueMonitor\\QueueMonitorServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
