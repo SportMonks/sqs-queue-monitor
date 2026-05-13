@@ -189,6 +189,10 @@
         return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
     }
 
+    function unprocessedCount(arr) {
+        return arr.filter(j => j.status === 'pending' || j.status === 'stale').length;
+    }
+
     function oldestPending(arr) {
         const pending = arr.filter(j => j.status === 'pending' && j.dispatched_at);
         if (! pending.length) { return null; }
@@ -233,14 +237,13 @@
     }
 
     function render() {
-        renderSwitcher();
-        renderStatusBar();
-
         const hash = parseHash();
         if (hash.connection && state.connections[hash.connection]) {
             state.active = hash.connection;
         }
 
+        x();
+        renderStatusBar();
         renderBreadcrumb(hash);
 
         if (hash.job && hash.queue && hash.group !== undefined) {
@@ -300,11 +303,12 @@
             if (! queueMap[q]) { queueMap[q] = []; }
             queueMap[q].push(j);
         });
-        setThead(['Queue', 'Jobs tracked', 'Oldest unprocessed', 'Latest dispatched', 'Avg processing time', '']);
+        setThead(['Queue', 'Jobs tracked', 'Oldest unprocessed', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', '']);
         setTbody(Object.entries(queueMap).map(([q, qjobs]) => [
             q,
             qjobs.length,
             fmtDt(oldestPending(qjobs)),
+            unprocessedCount(qjobs),
             fmtDt(latestDispatched(qjobs)),
             fmtMs(avgMs(qjobs.filter(j => j.status === 'processed'))),
             navLink('View →', { connection: state.active, queue: q }),
@@ -319,11 +323,12 @@
             if (! groupMap[g]) { groupMap[g] = []; }
             groupMap[g].push(j);
         });
-        setThead(['Group', 'Jobs tracked', 'Oldest unprocessed', 'Latest dispatched', 'Avg processing time', '']);
+        setThead(['Group', 'Jobs tracked', 'Oldest unprocessed', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', '']);
         setTbody(Object.entries(groupMap).map(([g, gjobs]) => [
             g,
             gjobs.length,
             fmtDt(oldestPending(gjobs)),
+            unprocessedCount(gjobs),
             fmtDt(latestDispatched(gjobs)),
             fmtMs(avgMs(gjobs.filter(j => j.status === 'processed'))),
             navLink('View →', { connection: state.active, queue: hash.queue, group: g === '(none)' ? '' : g }),
@@ -341,11 +346,12 @@
             if (! jobMap[n]) { jobMap[n] = []; }
             jobMap[n].push(j);
         });
-        setThead(['Job', 'Amount tracked', 'Oldest unprocessed', 'Latest dispatched', 'Avg processing time', '']);
+        setThead(['Job', 'Amount tracked', 'Oldest unprocessed', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', '']);
         setTbody(Object.entries(jobMap).map(([n, njobs]) => [
             n,
             njobs.length,
             fmtDt(oldestPending(njobs)),
+            unprocessedCount(njobs),
             fmtDt(latestDispatched(njobs)),
             fmtMs(avgMs(njobs.filter(j => j.status === 'processed'))),
             navLink('View →', { connection: state.active, queue: hash.queue, group: hash.group, job: n }),
