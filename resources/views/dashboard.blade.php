@@ -242,7 +242,7 @@
             state.active = hash.connection;
         }
 
-        x();
+        renderSwitcher();
         renderStatusBar();
         renderBreadcrumb(hash);
 
