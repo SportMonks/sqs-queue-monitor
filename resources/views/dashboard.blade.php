@@ -58,7 +58,7 @@
             forceTLS: conn.port === 443,
             enabledTransports: ['ws', 'wss'],
             cluster: 'mt1',
-            authEndpoint: conn.authEndpoint,
+            authEndpoint: conn.authEndpoint + '?key=' + encodeURIComponent(conn.key),
             auth: {
                 headers: {
                     'X-CSRF-TOKEN': CSRF,
@@ -167,6 +167,22 @@
     }
 
     window.addEventListener('hashchange', render);
+
+    const sort = { col: null, dir: null };
+    let lastViewKey = null;
+
+    const SORT_ICON = {
+        none: '<svg class="inline-block ml-1 align-middle opacity-30" width="8" height="11" viewBox="0 0 8 11" fill="currentColor"><path d="M4 0L8 5H0Z"/><path d="M4 11L0 6H8Z"/></svg>',
+        desc: '<svg class="inline-block ml-1 align-middle text-blue-400" width="8" height="11" viewBox="0 0 8 11" fill="currentColor"><path d="M4 11L0 5H8Z"/></svg>',
+        asc:  '<svg class="inline-block ml-1 align-middle text-blue-400" width="8" height="11" viewBox="0 0 8 11" fill="currentColor"><path d="M4 0L8 6H0Z"/></svg>',
+    };
+
+    window.cycleSort = function (col) {
+        if (sort.col !== col)       { sort.col = col; sort.dir = 'desc'; }
+        else if (sort.dir === 'desc') { sort.dir = 'asc'; }
+        else                          { sort.col = null; sort.dir = null; }
+        render();
+    };
 
     function jobs() {
         return Array.from(state.connections[state.active]?.jobs.values() ?? []);
@@ -281,14 +297,29 @@
 
     function setThead(cols) {
         document.getElementById('table-head').innerHTML =
-            '<tr>' + cols.map(c => `<th class="px-2 py-2 sm:px-4 sm:py-3 text-left">${c}</th>`).join('') + '</tr>';
+            '<tr>' + cols.map((c, i) =>
+                `<th class="px-2 py-2 sm:px-4 sm:py-3 text-left cursor-pointer select-none hover:text-gray-200" onclick="cycleSort(${i})">${c}${sort.col === i ? SORT_ICON[sort.dir] : SORT_ICON.none}</th>`
+            ).join('') + '</tr>';
     }
 
     function setTbody(rows) {
+        let sorted = rows;
+        if (sort.col !== null) {
+            sorted = [...rows].sort((a, b) => {
+                let va = a.values?.[sort.col] ?? null;
+                let vb = b.values?.[sort.col] ?? null;
+                if (va === null) { va = typeof vb === 'number' ? -Infinity : ''; }
+                if (vb === null) { vb = typeof va === 'number' ? -Infinity : ''; }
+                const cmp = (typeof va === 'number' && typeof vb === 'number')
+                    ? va - vb
+                    : String(va).localeCompare(String(vb));
+                return sort.dir === 'desc' ? -cmp : cmp;
+            });
+        }
         const tbody = document.getElementById('table-body');
-        tbody.innerHTML = rows.map(row => {
-            const cells = Array.isArray(row) ? row : row.cells;
-            const href  = Array.isArray(row) ? null : (row.href ?? null);
+        tbody.innerHTML = sorted.map(row => {
+            const cells = row.cells;
+            const href  = row.href ?? null;
             const tr    = href
                 ? `<tr class="hover:bg-gray-900 cursor-pointer" onclick="location.hash='${href}'">`
                 : `<tr class="hover:bg-gray-900">`;
@@ -316,6 +347,9 @@
         if (hash.connection && state.connections[hash.connection]) {
             state.active = hash.connection;
         }
+
+        const viewKey = hash.job ? 'detail' : hash.group !== undefined ? 'group' : hash.queue ? 'queue' : 'all';
+        if (viewKey !== lastViewKey) { sort.col = null; sort.dir = null; lastViewKey = viewKey; }
 
         renderSwitcher();
         renderStatusBar();
@@ -380,15 +414,9 @@
         });
         setThead(['Queue', 'Jobs tracked', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time']);
         setTbody(Object.entries(queueMap).map(([q, qjobs]) => ({
-            href: buildHash({ connection: state.active, queue: q }),
-            cells: [
-                q,
-                qjobs.length,
-                unprocessedCount(qjobs),
-                fmtDt(latestDispatched(qjobs)),
-                fmtMs(avgMs(qjobs.filter(j => j.status === 'processed'))),
-                fmtMs(avgWaitMs(qjobs)),
-            ],
+            href:   buildHash({ connection: state.active, queue: q }),
+            values: [q, qjobs.length, unprocessedCount(qjobs), new Date(latestDispatched(qjobs) ?? 0).getTime(), avgMs(qjobs.filter(j => j.status === 'processed')), avgWaitMs(qjobs)],
+            cells:  [q, qjobs.length, unprocessedCount(qjobs), fmtDt(latestDispatched(qjobs)), fmtMs(avgMs(qjobs.filter(j => j.status === 'processed'))), fmtMs(avgWaitMs(qjobs))],
         })));
     }
 
@@ -402,15 +430,9 @@
         });
         setThead(['Group', 'Jobs tracked', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time']);
         setTbody(Object.entries(groupMap).map(([g, gjobs]) => ({
-            href: buildHash({ connection: state.active, queue: hash.queue, group: g === '(none)' ? '' : g }),
-            cells: [
-                g,
-                gjobs.length,
-                unprocessedCount(gjobs),
-                fmtDt(latestDispatched(gjobs)),
-                fmtMs(avgMs(gjobs.filter(j => j.status === 'processed'))),
-                fmtMs(avgWaitMs(gjobs)),
-            ],
+            href:   buildHash({ connection: state.active, queue: hash.queue, group: g === '(none)' ? '' : g }),
+            values: [g, gjobs.length, unprocessedCount(gjobs), new Date(latestDispatched(gjobs) ?? 0).getTime(), avgMs(gjobs.filter(j => j.status === 'processed')), avgWaitMs(gjobs)],
+            cells:  [`<span title="${g}">${g}</span>${copyIcon(g)}`, gjobs.length, unprocessedCount(gjobs), fmtDt(latestDispatched(gjobs)), fmtMs(avgMs(gjobs.filter(j => j.status === 'processed'))), fmtMs(avgWaitMs(gjobs))],
         })));
     }
 
@@ -427,15 +449,9 @@
         });
         setThead(['Job', 'Amount tracked', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time']);
         setTbody(Object.entries(jobMap).map(([n, njobs]) => ({
-            href: buildHash({ connection: state.active, queue: hash.queue, group: hash.group, job: n }),
-            cells: [
-                `<span title="${n}">${shortName(n)}</span>${copyIcon(n)}`,
-                njobs.length,
-                unprocessedCount(njobs),
-                fmtDt(latestDispatched(njobs)),
-                fmtMs(avgMs(njobs.filter(j => j.status === 'processed'))),
-                fmtMs(avgWaitMs(njobs)),
-            ],
+            href:   buildHash({ connection: state.active, queue: hash.queue, group: hash.group, job: n }),
+            values: [n, njobs.length, unprocessedCount(njobs), new Date(latestDispatched(njobs) ?? 0).getTime(), avgMs(njobs.filter(j => j.status === 'processed')), avgWaitMs(njobs)],
+            cells:  [`<span title="${n}">${shortName(n)}</span>${copyIcon(n)}`, njobs.length, unprocessedCount(njobs), fmtDt(latestDispatched(njobs)), fmtMs(avgMs(njobs.filter(j => j.status === 'processed'))), fmtMs(avgWaitMs(njobs))],
         })));
     }
 
@@ -449,16 +465,15 @@
             )
             .sort((a, b) => (b.dispatched_at ?? '').localeCompare(a.dispatched_at ?? ''));
         setThead(['Job', 'Dispatched at', 'Processed at', 'Processing time', 'Wait time', 'Status']);
-        setTbody(all.map(j => [
-            `<span title="${j.display_name ?? ''}">${shortName(j.display_name) ?? '—'}</span>${copyIcon(j.display_name ?? '')}`,
-            fmtDt(j.dispatched_at),
-            fmtDt(j.processed_at),
-            fmtMs(j.processing_time_ms),
-            j.dispatched_at && j.processed_at && j.processing_time_ms !== null
-                ? fmtMs(new Date(j.processed_at).getTime() - j.processing_time_ms - new Date(j.dispatched_at).getTime())
-                : '—',
-            statusBadge(j.status),
-        ]));
+        setTbody(all.map(j => {
+            const waitMs = j.dispatched_at && j.processed_at && j.processing_time_ms !== null
+                ? new Date(j.processed_at).getTime() - j.processing_time_ms - new Date(j.dispatched_at).getTime()
+                : null;
+            return {
+                values: [j.display_name ?? '', new Date(j.dispatched_at ?? 0).getTime(), new Date(j.processed_at ?? 0).getTime(), j.processing_time_ms, waitMs, j.status],
+                cells:  [`<span title="${j.display_name ?? ''}">${shortName(j.display_name) ?? '—'}</span>${copyIcon(j.display_name ?? '')}`, fmtDt(j.dispatched_at), fmtDt(j.processed_at), fmtMs(j.processing_time_ms), fmtMs(waitMs), statusBadge(j.status)],
+            };
+        }));
     }
 
     render();
