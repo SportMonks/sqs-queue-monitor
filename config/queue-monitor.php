@@ -13,6 +13,7 @@ return [
         'connections' => [
             [
                 'name'         => env('APP_NAME', 'App'),
+                'channel'      => env('QUEUE_MONITOR_CHANNEL', 'queue-monitor'),
                 'key'          => env('REVERB_APP_KEY', ''),
                 'host'         => env('REVERB_HOST', 'localhost'),
                 'port'         => (int) env('REVERB_PORT', 8080),

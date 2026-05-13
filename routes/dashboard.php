@@ -7,14 +7,25 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['web'])->group(function () {
     Route::get(config('queue-monitor.dashboard.path', 'queue-monitor'), function () {
         return view('queue-monitor::dashboard', [
-            'channel'     => config('queue-monitor.channel'),
             'connections' => config('queue-monitor.dashboard.connections', []),
         ]);
     })->name('queue-monitor.dashboard');
 
-    // Custom auth endpoint that signs channel subscriptions without requiring an
-    // authenticated session. The dashboard is a local dev tool; it has no login.
+    // Signs channel subscriptions for any configured connection without requiring
+    // an authenticated session. Uses the matching Reverb app secret for the key
+    // passed as a query param, so multi-app dashboards sign correctly.
     Route::post(config('queue-monitor.dashboard.path', 'queue-monitor') . '/auth', function (Request $request) {
-        return Broadcast::driver()->validAuthenticationResponse($request, true);
+        $key = $request->query('key');
+
+        $app = collect(config('reverb.apps.apps', []))
+            ->first(fn (array $app): bool => $app['key'] === $key);
+
+        if (! $app) {
+            return Broadcast::driver()->validAuthenticationResponse($request, true);
+        }
+
+        $signature = hash_hmac('sha256', $request->socket_id.':'.$request->channel_name, $app['secret']);
+
+        return ['auth' => $app['key'].':'.$signature];
     })->name('queue-monitor.auth');
 });

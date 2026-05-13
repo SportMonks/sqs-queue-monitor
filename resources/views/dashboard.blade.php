@@ -38,7 +38,6 @@
 
 <script>
 (function () {
-    const CHANNEL = @json($channel);
     const CONNECTIONS_CONFIG = @json($connections);
     const SWEEP_INTERVAL_MS = 60_000;
     const PROCESSED_TTL_MS = 30 * 60_000;
@@ -75,7 +74,7 @@
         pusher.connection.bind('disconnected', () => { connection.status = 'disconnected'; render(); });
         pusher.connection.bind('failed',       () => { connection.status = 'failed';       render(); });
 
-        const channel = pusher.subscribe('private-' + CHANNEL);
+        const channel = pusher.subscribe('private-' + conn.channel);
         channel.bind('pusher:subscription_error', () => { connection.status = 'auth-error'; render(); });
         channel.bind('job.dispatched', data => handleDispatched(conn.name, data));
         channel.bind('job.updated',    data => handleUpdated(conn.name, data));
@@ -201,12 +200,6 @@
         return arr.filter(j => j.status === 'pending' || j.status === 'stale').length;
     }
 
-    function oldestPending(arr) {
-        const pending = arr.filter(j => j.status === 'pending' && j.dispatched_at);
-        if (! pending.length) { return null; }
-        return pending.reduce((a, b) => a.dispatched_at < b.dispatched_at ? a : b).dispatched_at;
-    }
-
     function latestDispatched(arr) {
         const withDate = arr.filter(j => j.dispatched_at);
         if (! withDate.length) { return null; }
@@ -216,6 +209,56 @@
     function shortName(name) {
         if (! name) { return name; }
         return name.split(/[\\\/]/).pop() ?? name;
+    }
+
+    const COPY_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+
+    window.copyJobName = function (btn, e) {
+        e.stopPropagation();
+        const text = btn.dataset.copy;
+
+        const showTip = () => {
+            const r   = btn.getBoundingClientRect();
+            const tip = document.createElement('div');
+            tip.textContent = 'Copied to clipboard!';
+            tip.style.cssText = [
+                'position:fixed',
+                'left:' + (r.left + r.width / 2) + 'px',
+                'top:' + (r.top - 8) + 'px',
+                'transform:translate(-50%,-100%)',
+                'background:#111827',
+                'color:#4ade80',
+                'border:1px solid #374151',
+                'padding:3px 10px',
+                'border-radius:6px',
+                'font-size:11px',
+                'font-family:monospace',
+                'white-space:nowrap',
+                'pointer-events:none',
+                'z-index:9999',
+                'transition:opacity 0.3s',
+            ].join(';');
+            document.body.appendChild(tip);
+            setTimeout(() => { tip.style.opacity = '0'; }, 900);
+            setTimeout(() => { tip.remove(); }, 1200);
+        };
+
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(showTip);
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+            showTip();
+        }
+    };
+
+    function copyIcon(name) {
+        return `<button class="inline-flex items-center ml-1.5 align-middle text-gray-600 hover:text-gray-200" style="cursor:pointer" data-copy="${name}" onclick="copyJobName(this,event)" title="Copy class name">${COPY_ICON}</button>`;
     }
 
     function statusBadge(status) {
@@ -257,7 +300,18 @@
         else { table.classList.remove('hidden'); empty.classList.add('hidden'); }
     }
 
+    let renderPending = false;
+
+    document.addEventListener('selectionchange', () => {
+        if (renderPending && ! window.getSelection()?.toString()) {
+            renderPending = false;
+            render();
+        }
+    });
+
     function render() {
+        if (window.getSelection()?.toString()) { renderPending = true; return; }
+        renderPending = false;
         const hash = parseHash();
         if (hash.connection && state.connections[hash.connection]) {
             state.active = hash.connection;
@@ -324,13 +378,12 @@
             if (! queueMap[q]) { queueMap[q] = []; }
             queueMap[q].push(j);
         });
-        setThead(['Queue', 'Jobs tracked', 'Oldest unprocessed', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time']);
+        setThead(['Queue', 'Jobs tracked', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time']);
         setTbody(Object.entries(queueMap).map(([q, qjobs]) => ({
             href: buildHash({ connection: state.active, queue: q }),
             cells: [
                 q,
                 qjobs.length,
-                fmtDt(oldestPending(qjobs)),
                 unprocessedCount(qjobs),
                 fmtDt(latestDispatched(qjobs)),
                 fmtMs(avgMs(qjobs.filter(j => j.status === 'processed'))),
@@ -347,13 +400,12 @@
             if (! groupMap[g]) { groupMap[g] = []; }
             groupMap[g].push(j);
         });
-        setThead(['Group', 'Jobs tracked', 'Oldest unprocessed', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time']);
+        setThead(['Group', 'Jobs tracked', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time']);
         setTbody(Object.entries(groupMap).map(([g, gjobs]) => ({
             href: buildHash({ connection: state.active, queue: hash.queue, group: g === '(none)' ? '' : g }),
             cells: [
                 g,
                 gjobs.length,
-                fmtDt(oldestPending(gjobs)),
                 unprocessedCount(gjobs),
                 fmtDt(latestDispatched(gjobs)),
                 fmtMs(avgMs(gjobs.filter(j => j.status === 'processed'))),
@@ -373,13 +425,12 @@
             if (! jobMap[n]) { jobMap[n] = []; }
             jobMap[n].push(j);
         });
-        setThead(['Job', 'Amount tracked', 'Oldest unprocessed', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time']);
+        setThead(['Job', 'Amount tracked', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time']);
         setTbody(Object.entries(jobMap).map(([n, njobs]) => ({
             href: buildHash({ connection: state.active, queue: hash.queue, group: hash.group, job: n }),
             cells: [
-                `<span title="${n}">${shortName(n)}</span>`,
+                `<span title="${n}">${shortName(n)}</span>${copyIcon(n)}`,
                 njobs.length,
-                fmtDt(oldestPending(njobs)),
                 unprocessedCount(njobs),
                 fmtDt(latestDispatched(njobs)),
                 fmtMs(avgMs(njobs.filter(j => j.status === 'processed'))),
@@ -399,7 +450,7 @@
             .sort((a, b) => (b.dispatched_at ?? '').localeCompare(a.dispatched_at ?? ''));
         setThead(['Job', 'Dispatched at', 'Processed at', 'Processing time', 'Wait time', 'Status']);
         setTbody(all.map(j => [
-            `<span title="${j.display_name ?? ''}">${shortName(j.display_name) ?? '—'}</span>`,
+            `<span title="${j.display_name ?? ''}">${shortName(j.display_name) ?? '—'}</span>${copyIcon(j.display_name ?? '')}`,
             fmtDt(j.dispatched_at),
             fmtDt(j.processed_at),
             fmtMs(j.processing_time_ms),
