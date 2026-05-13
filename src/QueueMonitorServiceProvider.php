@@ -38,10 +38,10 @@ class QueueMonitorServiceProvider extends ServiceProvider
 
         Queue::createPayloadUsing(new PayloadInjector($connections));
 
-        Event::listen(JobQueued::class, new OnJobQueued($channel));
-        Event::listen(JobProcessing::class, new OnJobProcessing);
-        Event::listen(JobProcessed::class, new OnJobProcessed($channel));
-        Event::listen(JobFailed::class, new OnJobFailed($channel));
+        Event::listen(JobQueued::class, [new OnJobQueued($channel), 'handle']);
+        Event::listen(JobProcessing::class, [new OnJobProcessing, 'handle']);
+        Event::listen(JobProcessed::class, [new OnJobProcessed($channel), 'handle']);
+        Event::listen(JobFailed::class, [new OnJobFailed($channel), 'handle']);
 
         Broadcast::channel($channel, QueueMonitorChannel::class);
 
