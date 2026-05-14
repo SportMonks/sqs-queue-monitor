@@ -7,23 +7,18 @@ use Illuminate\Support\Facades\Event;
 use QueueMonitor\Events\JobUpdated;
 use QueueMonitor\Listeners\OnJobProcessed;
 use QueueMonitor\Listeners\OnJobProcessing;
+use QueueMonitor\Tests\Support\FakeJob;
 
-function makeProcessedJob(array $payload): object
+function makeProcessedJob(array $payload): FakeJob
 {
-    return new class($payload) {
-        public function __construct(private array $data) {}
-
-        public function payload(): array
-        {
-            return $this->data;
-        }
-    };
+    return new FakeJob($payload);
 }
 
 it('dispatches JobUpdated with processed status and processing time', function () {
     Event::fake([JobUpdated::class]);
 
     OnJobProcessing::recordStartTime('abc-123', microtime(true) - 0.5);
+    OnJobProcessing::recordMemoryBytes('abc-123', memory_get_usage(true));
 
     $job = makeProcessedJob([
         'queue_monitor' => [
@@ -44,7 +39,8 @@ it('dispatches JobUpdated with processed status and processing time', function (
         $e->groupName === 'openf1' &&
         $e->displayName === 'MyJob' &&
         $e->dispatchedAt === '2026-05-13T10:00:00.000Z' &&
-        $e->processingTimeMs >= 400 && $e->processingTimeMs <= 600
+        $e->processingTimeMs >= 400 && $e->processingTimeMs <= 600 &&
+        is_int($e->memoryBytes)
     );
 });
 
@@ -52,6 +48,7 @@ it('dispatches JobUpdated with null processing time when start was not recorded'
     Event::fake([JobUpdated::class]);
 
     OnJobProcessing::clearStartTime('no-start');
+    OnJobProcessing::clearMemoryBytes('no-start');
 
     $job = makeProcessedJob([
         'queue_monitor' => [
@@ -66,7 +63,8 @@ it('dispatches JobUpdated with null processing time when start was not recorded'
     (new OnJobProcessed('queue-monitor'))->handle(new JobProcessed('sqs', $job));
 
     Event::assertDispatched(JobUpdated::class, fn (JobUpdated $e) =>
-        $e->processingTimeMs === null
+        $e->processingTimeMs === null &&
+        $e->memoryBytes === null
     );
 });
 

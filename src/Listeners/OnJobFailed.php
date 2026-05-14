@@ -21,7 +21,9 @@ class OnJobFailed
 
         $trackerId = $monitor['tracker_id'];
         $startTime = OnJobProcessing::getStartTime($trackerId);
+        $startMemory = OnJobProcessing::getMemoryBytes($trackerId);
         OnJobProcessing::clearStartTime($trackerId);
+        OnJobProcessing::clearMemoryBytes($trackerId);
 
         event(new JobUpdated(
             trackerId: $trackerId,
@@ -33,6 +35,9 @@ class OnJobFailed
             processedAt: now()->toISOString(),
             processingTimeMs: $startTime !== null
                 ? (int) round((microtime(true) - $startTime) * 1000)
+                : null,
+            memoryBytes: $startMemory !== null
+                ? memory_get_usage(true) - $startMemory
                 : null,
             channel: $this->channel,
         ));

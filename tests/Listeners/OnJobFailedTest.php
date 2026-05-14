@@ -7,23 +7,18 @@ use Illuminate\Support\Facades\Event;
 use QueueMonitor\Events\JobUpdated;
 use QueueMonitor\Listeners\OnJobFailed;
 use QueueMonitor\Listeners\OnJobProcessing;
+use QueueMonitor\Tests\Support\FakeJob;
 
-function makeFailedJob(array $payload): object
+function makeFailedJob(array $payload): FakeJob
 {
-    return new class($payload) {
-        public function __construct(private array $data) {}
-
-        public function payload(): array
-        {
-            return $this->data;
-        }
-    };
+    return new FakeJob($payload);
 }
 
 it('dispatches JobUpdated with failed status', function () {
     Event::fake([JobUpdated::class]);
 
     OnJobProcessing::recordStartTime('fail-123', microtime(true) - 0.3);
+    OnJobProcessing::recordMemoryBytes('fail-123', memory_get_usage(true));
 
     $job = makeFailedJob([
         'queue_monitor' => [
@@ -40,7 +35,8 @@ it('dispatches JobUpdated with failed status', function () {
     Event::assertDispatched(JobUpdated::class, fn (JobUpdated $e) =>
         $e->trackerId === 'fail-123' &&
         $e->status === 'failed' &&
-        $e->processingTimeMs >= 200 && $e->processingTimeMs <= 400
+        $e->processingTimeMs >= 200 && $e->processingTimeMs <= 400 &&
+        is_int($e->memoryBytes)
     );
 });
 

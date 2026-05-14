@@ -18,6 +18,7 @@ class JobUpdated implements ShouldBroadcastNow
         public readonly string $status,
         public readonly string $processedAt,
         public readonly ?int $processingTimeMs,
+        public readonly ?int $memoryBytes,
         private readonly string $channel,
     ) {}
 
@@ -45,6 +46,7 @@ class JobUpdated implements ShouldBroadcastNow
             'status' => $this->status,
             'processed_at' => $this->processedAt,
             'processing_time_ms' => $this->processingTimeMs,
+            'memory_bytes' => $this->memoryBytes,
         ];
     }
 }
