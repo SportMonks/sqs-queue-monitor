@@ -20,10 +20,19 @@ class OnJobProcessed
         }
 
         $trackerId = $monitor['tracker_id'];
-        $startTime = OnJobProcessing::getStartTime($trackerId);
+        $startTime  = OnJobProcessing::getStartTime($trackerId);
         $startMemory = OnJobProcessing::getMemoryBytes($trackerId);
+        $startCpu   = OnJobProcessing::getCpuUsage($trackerId);
         OnJobProcessing::clearStartTime($trackerId);
         OnJobProcessing::clearMemoryBytes($trackerId);
+        OnJobProcessing::clearCpuUsage($trackerId);
+
+        $endTime   = microtime(true);
+        $endMemory = memory_get_peak_usage(true);
+        $ru        = getrusage();
+        $endCpu    = ($ru['ru_utime.tv_sec'] * 1_000_000 + $ru['ru_utime.tv_usec'])
+                   + ($ru['ru_stime.tv_sec'] * 1_000_000 + $ru['ru_stime.tv_usec']);
+        $wallUs    = $startTime !== null ? ($endTime - $startTime) * 1_000_000 : 0.0;
 
         event(new JobUpdated(
             trackerId: $trackerId,
@@ -34,10 +43,13 @@ class OnJobProcessed
             status: 'processed',
             processedAt: now()->toISOString(),
             processingTimeMs: $startTime !== null
-                ? (int) round((microtime(true) - $startTime) * 1000)
+                ? (int) round(($endTime - $startTime) * 1000)
                 : null,
             memoryBytes: $startMemory !== null
-                ? memory_get_usage(true) - $startMemory
+                ? $endMemory - $startMemory
+                : null,
+            cpuPercent: ($startCpu !== null && $wallUs > 0)
+                ? (int) round(($endCpu - $startCpu) / $wallUs * 100)
                 : null,
             channel: $this->channel,
         ));

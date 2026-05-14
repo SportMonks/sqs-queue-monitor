@@ -19,6 +19,7 @@ it('dispatches JobUpdated with failed status', function () {
 
     OnJobProcessing::recordStartTime('fail-123', microtime(true) - 0.3);
     OnJobProcessing::recordMemoryBytes('fail-123', memory_get_usage(true));
+    OnJobProcessing::recordCpuUsage('fail-123', 0);
 
     $job = makeFailedJob([
         'queue_monitor' => [
@@ -36,7 +37,8 @@ it('dispatches JobUpdated with failed status', function () {
         $e->trackerId === 'fail-123' &&
         $e->status === 'failed' &&
         $e->processingTimeMs >= 200 && $e->processingTimeMs <= 400 &&
-        is_int($e->memoryBytes)
+        is_int($e->memoryBytes) &&
+        is_int($e->cpuPercent)
     );
 });
 

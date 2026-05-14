@@ -104,6 +104,7 @@
                 processed_at: null,
                 processing_time_ms: null,
                 memory_bytes: null,
+                cpu_percent: null,
             });
         }
         if (connName === state.active) { render(); }
@@ -119,6 +120,7 @@
                 processed_at: data.processed_at,
                 processing_time_ms: data.processing_time_ms,
                 memory_bytes: data.memory_bytes ?? null,
+                cpu_percent: data.cpu_percent ?? null,
             });
         } else {
             jobs.set(data.tracker_id, {
@@ -131,6 +133,7 @@
                 processed_at: data.processed_at,
                 processing_time_ms: data.processing_time_ms,
                 memory_bytes: data.memory_bytes ?? null,
+                cpu_percent: data.cpu_percent ?? null,
             });
         }
         if (connName === state.active) { render(); }
@@ -227,6 +230,17 @@
 
     function avgMemoryBytes(arr) {
         const vals = arr.map(j => j.memory_bytes).filter(v => v !== null);
+        if (! vals.length) { return null; }
+        return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+    }
+
+    function fmtPercent(pct) {
+        if (pct === null || pct === undefined) { return '—'; }
+        return pct + '%';
+    }
+
+    function avgCpuPercent(arr) {
+        const vals = arr.map(j => j.cpu_percent).filter(v => v !== null);
         if (! vals.length) { return null; }
         return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
     }
@@ -431,13 +445,13 @@
             if (! queueMap[q]) { queueMap[q] = []; }
             queueMap[q].push(j);
         });
-        setThead(['Queue', 'Jobs tracked', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time', 'Avg memory']);
+        setThead(['Queue', 'Jobs tracked', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
         setTbody(Object.entries(queueMap).map(([q, qjobs]) => {
             const processed = qjobs.filter(j => j.status === 'processed');
             return {
                 href:   buildHash({ connection: state.active, queue: q }),
-                values: [q, qjobs.length, unprocessedCount(qjobs), new Date(latestDispatched(qjobs) ?? 0).getTime(), avgMs(processed), avgWaitMs(qjobs), avgMemoryBytes(processed)],
-                cells:  [q, qjobs.length, unprocessedCount(qjobs), fmtDt(latestDispatched(qjobs)), fmtMs(avgMs(processed)), fmtMs(avgWaitMs(qjobs)), fmtBytes(avgMemoryBytes(processed))],
+                values: [q, qjobs.length, unprocessedCount(qjobs), new Date(latestDispatched(qjobs) ?? 0).getTime(), avgMs(processed), avgWaitMs(qjobs), avgMemoryBytes(processed), avgCpuPercent(processed)],
+                cells:  [q, qjobs.length, unprocessedCount(qjobs), fmtDt(latestDispatched(qjobs)), fmtMs(avgMs(processed)), fmtMs(avgWaitMs(qjobs)), fmtBytes(avgMemoryBytes(processed)), fmtPercent(avgCpuPercent(processed))],
             };
         }));
     }
@@ -450,13 +464,13 @@
             if (! groupMap[g]) { groupMap[g] = []; }
             groupMap[g].push(j);
         });
-        setThead(['Group', 'Jobs tracked', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time', 'Avg memory']);
+        setThead(['Group', 'Jobs tracked', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
         setTbody(Object.entries(groupMap).map(([g, gjobs]) => {
             const processed = gjobs.filter(j => j.status === 'processed');
             return {
                 href:   buildHash({ connection: state.active, queue: hash.queue, group: g === '(none)' ? '' : g }),
-                values: [g, gjobs.length, unprocessedCount(gjobs), new Date(latestDispatched(gjobs) ?? 0).getTime(), avgMs(processed), avgWaitMs(gjobs), avgMemoryBytes(processed)],
-                cells:  [`<span title="${g}">${g}</span>${copyIcon(g)}`, gjobs.length, unprocessedCount(gjobs), fmtDt(latestDispatched(gjobs)), fmtMs(avgMs(processed)), fmtMs(avgWaitMs(gjobs)), fmtBytes(avgMemoryBytes(processed))],
+                values: [g, gjobs.length, unprocessedCount(gjobs), new Date(latestDispatched(gjobs) ?? 0).getTime(), avgMs(processed), avgWaitMs(gjobs), avgMemoryBytes(processed), avgCpuPercent(processed)],
+                cells:  [`<span title="${g}">${g}</span>${copyIcon(g)}`, gjobs.length, unprocessedCount(gjobs), fmtDt(latestDispatched(gjobs)), fmtMs(avgMs(processed)), fmtMs(avgWaitMs(gjobs)), fmtBytes(avgMemoryBytes(processed)), fmtPercent(avgCpuPercent(processed))],
             };
         }));
     }
@@ -472,13 +486,13 @@
             if (! jobMap[n]) { jobMap[n] = []; }
             jobMap[n].push(j);
         });
-        setThead(['Job', 'Amount tracked', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time', 'Avg memory']);
+        setThead(['Job', 'Amount tracked', 'Unprocessed count', 'Latest dispatched', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
         setTbody(Object.entries(jobMap).map(([n, njobs]) => {
             const processed = njobs.filter(j => j.status === 'processed');
             return {
                 href:   buildHash({ connection: state.active, queue: hash.queue, group: hash.group, job: n }),
-                values: [n, njobs.length, unprocessedCount(njobs), new Date(latestDispatched(njobs) ?? 0).getTime(), avgMs(processed), avgWaitMs(njobs), avgMemoryBytes(processed)],
-                cells:  [`<span title="${n}">${shortName(n)}</span>${copyIcon(n)}`, njobs.length, unprocessedCount(njobs), fmtDt(latestDispatched(njobs)), fmtMs(avgMs(processed)), fmtMs(avgWaitMs(njobs)), fmtBytes(avgMemoryBytes(processed))],
+                values: [n, njobs.length, unprocessedCount(njobs), new Date(latestDispatched(njobs) ?? 0).getTime(), avgMs(processed), avgWaitMs(njobs), avgMemoryBytes(processed), avgCpuPercent(processed)],
+                cells:  [`<span title="${n}">${shortName(n)}</span>${copyIcon(n)}`, njobs.length, unprocessedCount(njobs), fmtDt(latestDispatched(njobs)), fmtMs(avgMs(processed)), fmtMs(avgWaitMs(njobs)), fmtBytes(avgMemoryBytes(processed)), fmtPercent(avgCpuPercent(processed))],
             };
         }));
     }
@@ -492,14 +506,14 @@
                 j.display_name === hash.job
             )
             .sort((a, b) => (b.dispatched_at ?? '').localeCompare(a.dispatched_at ?? ''));
-        setThead(['Job', 'Dispatched at', 'Processed at', 'Processing time', 'Wait time', 'Memory', 'Status']);
+        setThead(['Job', 'Dispatched at', 'Processed at', 'Processing time', 'Wait time', 'Memory', 'CPU', 'Status']);
         setTbody(all.map(j => {
             const waitMs = j.dispatched_at && j.processed_at && j.processing_time_ms !== null
                 ? new Date(j.processed_at).getTime() - j.processing_time_ms - new Date(j.dispatched_at).getTime()
                 : null;
             return {
-                values: [j.display_name ?? '', new Date(j.dispatched_at ?? 0).getTime(), new Date(j.processed_at ?? 0).getTime(), j.processing_time_ms, waitMs, j.memory_bytes, j.status],
-                cells:  [`<span title="${j.display_name ?? ''}">${shortName(j.display_name) ?? '—'}</span>${copyIcon(j.display_name ?? '')}`, fmtDt(j.dispatched_at), fmtDt(j.processed_at), fmtMs(j.processing_time_ms), fmtMs(waitMs), fmtBytes(j.memory_bytes), statusBadge(j.status)],
+                values: [j.display_name ?? '', new Date(j.dispatched_at ?? 0).getTime(), new Date(j.processed_at ?? 0).getTime(), j.processing_time_ms, waitMs, j.memory_bytes, j.cpu_percent, j.status],
+                cells:  [`<span title="${j.display_name ?? ''}">${shortName(j.display_name) ?? '—'}</span>${copyIcon(j.display_name ?? '')}`, fmtDt(j.dispatched_at), fmtDt(j.processed_at), fmtMs(j.processing_time_ms), fmtMs(waitMs), fmtBytes(j.memory_bytes), fmtPercent(j.cpu_percent), statusBadge(j.status)],
             };
         }));
     }

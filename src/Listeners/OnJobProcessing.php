@@ -14,6 +14,9 @@ class OnJobProcessing
     /** @var array<string, int> */
     private static array $memoryBytes = [];
 
+    /** @var array<string, int> */
+    private static array $cpuUsages = [];
+
     public function handle(JobProcessing $event): void
     {
         $monitor = $event->job->payload()['queue_monitor'] ?? null;
@@ -24,7 +27,12 @@ class OnJobProcessing
 
         $trackerId = $monitor['tracker_id'];
         self::$startTimes[$trackerId] = microtime(true);
+        memory_reset_peak_usage();
         self::$memoryBytes[$trackerId] = memory_get_usage(true);
+        $ru = getrusage();
+        self::$cpuUsages[$trackerId] =
+            ($ru['ru_utime.tv_sec'] * 1_000_000 + $ru['ru_utime.tv_usec']) +
+            ($ru['ru_stime.tv_sec'] * 1_000_000 + $ru['ru_stime.tv_usec']);
     }
 
     public static function getStartTime(string $trackerId): ?float
@@ -55,5 +63,20 @@ class OnJobProcessing
     public static function recordMemoryBytes(string $trackerId, int $bytes): void
     {
         self::$memoryBytes[$trackerId] = $bytes;
+    }
+
+    public static function getCpuUsage(string $trackerId): ?int
+    {
+        return self::$cpuUsages[$trackerId] ?? null;
+    }
+
+    public static function clearCpuUsage(string $trackerId): void
+    {
+        unset(self::$cpuUsages[$trackerId]);
+    }
+
+    public static function recordCpuUsage(string $trackerId, int $microseconds): void
+    {
+        self::$cpuUsages[$trackerId] = $microseconds;
     }
 }

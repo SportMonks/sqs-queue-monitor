@@ -19,6 +19,7 @@ it('dispatches JobUpdated with processed status and processing time', function (
 
     OnJobProcessing::recordStartTime('abc-123', microtime(true) - 0.5);
     OnJobProcessing::recordMemoryBytes('abc-123', memory_get_usage(true));
+    OnJobProcessing::recordCpuUsage('abc-123', 0);
 
     $job = makeProcessedJob([
         'queue_monitor' => [
@@ -40,7 +41,8 @@ it('dispatches JobUpdated with processed status and processing time', function (
         $e->displayName === 'MyJob' &&
         $e->dispatchedAt === '2026-05-13T10:00:00.000Z' &&
         $e->processingTimeMs >= 400 && $e->processingTimeMs <= 600 &&
-        is_int($e->memoryBytes)
+        is_int($e->memoryBytes) &&
+        is_int($e->cpuPercent)
     );
 });
 
@@ -64,7 +66,8 @@ it('dispatches JobUpdated with null processing time when start was not recorded'
 
     Event::assertDispatched(JobUpdated::class, fn (JobUpdated $e) =>
         $e->processingTimeMs === null &&
-        $e->memoryBytes === null
+        $e->memoryBytes === null &&
+        $e->cpuPercent === null
     );
 });
 

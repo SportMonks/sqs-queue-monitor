@@ -60,3 +60,22 @@ it('clearMemoryBytes removes the entry', function () {
 
     expect(OnJobProcessing::getMemoryBytes('abc-123'))->toBeNull();
 });
+
+it('records cpu usage for monitored jobs', function () {
+    OnJobProcessing::clearCpuUsage('abc-123');
+
+    $job = makeProcessingJob([
+        'queue_monitor' => ['tracker_id' => 'abc-123'],
+    ]);
+
+    (new OnJobProcessing())->handle(new JobProcessing('sqs', $job));
+
+    expect(OnJobProcessing::getCpuUsage('abc-123'))->toBeInt();
+});
+
+it('clearCpuUsage removes the entry', function () {
+    OnJobProcessing::recordCpuUsage('abc-123', 5000);
+    OnJobProcessing::clearCpuUsage('abc-123');
+
+    expect(OnJobProcessing::getCpuUsage('abc-123'))->toBeNull();
+});

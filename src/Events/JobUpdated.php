@@ -19,6 +19,7 @@ class JobUpdated implements ShouldBroadcastNow
         public readonly string $processedAt,
         public readonly ?int $processingTimeMs,
         public readonly ?int $memoryBytes,
+        public readonly ?int $cpuPercent,
         private readonly string $channel,
     ) {}
 
@@ -47,6 +48,7 @@ class JobUpdated implements ShouldBroadcastNow
             'processed_at' => $this->processedAt,
             'processing_time_ms' => $this->processingTimeMs,
             'memory_bytes' => $this->memoryBytes,
+            'cpu_percent' => $this->cpuPercent,
         ];
     }
 }
