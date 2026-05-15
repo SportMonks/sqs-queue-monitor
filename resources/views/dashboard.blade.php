@@ -100,6 +100,7 @@
                 group_name: data.group_name,
                 display_name: data.display_name,
                 dispatched_at: data.dispatched_at,
+                delayed_until: data.delayed_until ?? null,
                 status: 'pending',
                 processed_at: null,
                 processing_time_ms: null,
@@ -129,6 +130,7 @@
                 group_name: data.group_name,
                 display_name: data.display_name,
                 dispatched_at: data.dispatched_at,
+                delayed_until: null,
                 status: data.status,
                 processed_at: data.processed_at,
                 processing_time_ms: data.processing_time_ms,
@@ -212,7 +214,7 @@
 
     function avgWaitMs(arr) {
         const vals = arr
-            .filter(j => j.status === 'processed' && j.dispatched_at && j.processed_at && j.processing_time_ms !== null)
+            .filter(j => j.status === 'processed' && ! j.delayed_until && j.dispatched_at && j.processed_at && j.processing_time_ms !== null)
             .map(j => new Date(j.processed_at).getTime() - j.processing_time_ms - new Date(j.dispatched_at).getTime());
         if (! vals.length) { return null; }
         return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
@@ -245,8 +247,16 @@
         return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
     }
 
+    function isDelayed(j) {
+        return j.delayed_until !== null && new Date(j.delayed_until).getTime() > Date.now();
+    }
+
     function unprocessedCount(arr) {
-        return arr.filter(j => j.status === 'pending' || j.status === 'stale').length;
+        return arr.filter(j => (j.status === 'pending' || j.status === 'stale') && ! isDelayed(j)).length;
+    }
+
+    function delayedCount(arr) {
+        return arr.filter(j => j.status === 'pending' && isDelayed(j)).length;
     }
 
     function failedCount(arr) {
@@ -443,13 +453,13 @@
             if (! queueMap[q]) { queueMap[q] = []; }
             queueMap[q].push(j);
         });
-        setThead(['Queue', 'Tracked', 'Failed', 'Pending', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
+        setThead(['Queue', 'Tracked', 'Failed', 'Pending', 'Delayed', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
         setTbody(Object.entries(queueMap).map(([q, qjobs]) => {
             const processed = qjobs.filter(j => j.status === 'processed');
             return {
                 href:   buildHash({ connection: state.active, queue: q }),
-                values: [q, qjobs.length, failedCount(qjobs), unprocessedCount(qjobs), avgMs(processed), avgWaitMs(qjobs), avgMemoryBytes(processed), avgCpuPercent(processed)],
-                cells:  [q, qjobs.length, failedCount(qjobs), unprocessedCount(qjobs), fmtMs(avgMs(processed)), fmtMs(avgWaitMs(qjobs)), fmtBytes(avgMemoryBytes(processed)), fmtPercent(avgCpuPercent(processed))],
+                values: [q, qjobs.length, failedCount(qjobs), unprocessedCount(qjobs), delayedCount(qjobs), avgMs(processed), avgWaitMs(qjobs), avgMemoryBytes(processed), avgCpuPercent(processed)],
+                cells:  [q, qjobs.length, failedCount(qjobs), unprocessedCount(qjobs), delayedCount(qjobs), fmtMs(avgMs(processed)), fmtMs(avgWaitMs(qjobs)), fmtBytes(avgMemoryBytes(processed)), fmtPercent(avgCpuPercent(processed))],
             };
         }));
     }
@@ -462,13 +472,13 @@
             if (! groupMap[g]) { groupMap[g] = []; }
             groupMap[g].push(j);
         });
-        setThead(['Group', 'Tracked', 'Failed', 'Pending', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
+        setThead(['Group', 'Tracked', 'Failed', 'Pending', 'Delayed', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
         setTbody(Object.entries(groupMap).map(([g, gjobs]) => {
             const processed = gjobs.filter(j => j.status === 'processed');
             return {
                 href:   buildHash({ connection: state.active, queue: hash.queue, group: g === '(none)' ? '' : g }),
-                values: [g, gjobs.length, failedCount(gjobs), unprocessedCount(gjobs), avgMs(processed), avgWaitMs(gjobs), avgMemoryBytes(processed), avgCpuPercent(processed)],
-                cells:  [`<span title="${g}">${g}</span>${copyIcon(g)}`, gjobs.length, failedCount(gjobs), unprocessedCount(gjobs), fmtMs(avgMs(processed)), fmtMs(avgWaitMs(gjobs)), fmtBytes(avgMemoryBytes(processed)), fmtPercent(avgCpuPercent(processed))],
+                values: [g, gjobs.length, failedCount(gjobs), unprocessedCount(gjobs), delayedCount(gjobs), avgMs(processed), avgWaitMs(gjobs), avgMemoryBytes(processed), avgCpuPercent(processed)],
+                cells:  [`<span title="${g}">${g}</span>${copyIcon(g)}`, gjobs.length, failedCount(gjobs), unprocessedCount(gjobs), delayedCount(gjobs), fmtMs(avgMs(processed)), fmtMs(avgWaitMs(gjobs)), fmtBytes(avgMemoryBytes(processed)), fmtPercent(avgCpuPercent(processed))],
             };
         }));
     }
@@ -484,13 +494,13 @@
             if (! jobMap[n]) { jobMap[n] = []; }
             jobMap[n].push(j);
         });
-        setThead(['Job', 'Tracked', 'Failed', 'Pending', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
+        setThead(['Job', 'Tracked', 'Failed', 'Pending', 'Delayed', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
         setTbody(Object.entries(jobMap).map(([n, njobs]) => {
             const processed = njobs.filter(j => j.status === 'processed');
             return {
                 href:   buildHash({ connection: state.active, queue: hash.queue, group: hash.group, job: n }),
-                values: [n, njobs.length, failedCount(njobs), unprocessedCount(njobs), avgMs(processed), avgWaitMs(njobs), avgMemoryBytes(processed), avgCpuPercent(processed)],
-                cells:  [`<span title="${n}">${shortName(n)}</span>${copyIcon(n)}`, njobs.length, failedCount(njobs), unprocessedCount(njobs), fmtMs(avgMs(processed)), fmtMs(avgWaitMs(njobs)), fmtBytes(avgMemoryBytes(processed)), fmtPercent(avgCpuPercent(processed))],
+                values: [n, njobs.length, failedCount(njobs), unprocessedCount(njobs), delayedCount(njobs), avgMs(processed), avgWaitMs(njobs), avgMemoryBytes(processed), avgCpuPercent(processed)],
+                cells:  [`<span title="${n}">${shortName(n)}</span>${copyIcon(n)}`, njobs.length, failedCount(njobs), unprocessedCount(njobs), delayedCount(njobs), fmtMs(avgMs(processed)), fmtMs(avgWaitMs(njobs)), fmtBytes(avgMemoryBytes(processed)), fmtPercent(avgCpuPercent(processed))],
             };
         }));
     }

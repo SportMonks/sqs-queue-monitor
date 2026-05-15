@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace QueueMonitor\Listeners;
 
+use DateTimeInterface;
 use Illuminate\Queue\Events\JobQueued;
+use Illuminate\Support\Carbon;
 use QueueMonitor\Events\JobDispatched;
 
 class OnJobQueued
@@ -31,7 +33,21 @@ class OnJobQueued
             groupName: $monitor['group_name'] ?? null,
             displayName: $monitor['display_name'] ?? null,
             dispatchedAt: $monitor['dispatched_at'],
+            delayedUntil: $this->resolveDelayedUntil($event->delay, $monitor['dispatched_at']),
             channel: $this->channel,
         ));
+    }
+
+    private function resolveDelayedUntil(mixed $delay, string $dispatchedAt): ?string
+    {
+        if ($delay instanceof DateTimeInterface) {
+            return Carbon::instance($delay)->toISOString();
+        }
+
+        if (is_int($delay) && $delay > 0) {
+            return Carbon::parse($dispatchedAt)->addSeconds($delay)->toISOString();
+        }
+
+        return null;
     }
 }

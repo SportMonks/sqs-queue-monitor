@@ -15,6 +15,7 @@ class JobDispatched implements ShouldBroadcastNow
         public readonly ?string $groupName,
         public readonly ?string $displayName,
         public readonly string $dispatchedAt,
+        public readonly ?string $delayedUntil,
         private readonly string $channel,
     ) {}
 
@@ -39,6 +40,7 @@ class JobDispatched implements ShouldBroadcastNow
             'group_name' => $this->groupName,
             'display_name' => $this->displayName,
             'dispatched_at' => $this->dispatchedAt,
+            'delayed_until' => $this->delayedUntil,
         ];
     }
 }
