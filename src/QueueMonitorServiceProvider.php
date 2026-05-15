@@ -8,9 +8,9 @@ use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Queue\Events\JobQueued;
+use Illuminate\Queue\Queue as BaseQueue;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\ServiceProvider;
 use QueueMonitor\Http\QueueMonitorChannel;
 use QueueMonitor\Listeners\OnJobFailed;
@@ -36,7 +36,7 @@ class QueueMonitorServiceProvider extends ServiceProvider
         $channel = (string) config('queue-monitor.channel');
         $connections = (array) config('queue-monitor.connections');
 
-        Queue::createPayloadUsing(new PayloadInjector($connections));
+        BaseQueue::createPayloadUsing(new PayloadInjector($connections));
 
         Event::listen(JobQueued::class, [new OnJobQueued($channel), 'handle']);
         Event::listen(JobProcessing::class, [new OnJobProcessing, 'handle']);
