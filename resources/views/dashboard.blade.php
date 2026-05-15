@@ -443,7 +443,7 @@
             if (! queueMap[q]) { queueMap[q] = []; }
             queueMap[q].push(j);
         });
-        setThead(['Queue', 'Jobs tracked', 'Jobs failed', 'Unprocessed count', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
+        setThead(['Queue', 'Tracked', 'Failed', 'Pending', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
         setTbody(Object.entries(queueMap).map(([q, qjobs]) => {
             const processed = qjobs.filter(j => j.status === 'processed');
             return {
@@ -462,7 +462,7 @@
             if (! groupMap[g]) { groupMap[g] = []; }
             groupMap[g].push(j);
         });
-        setThead(['Group', 'Jobs tracked', 'Jobs failed', 'Unprocessed count', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
+        setThead(['Group', 'Tracked', 'Failed', 'Pending', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
         setTbody(Object.entries(groupMap).map(([g, gjobs]) => {
             const processed = gjobs.filter(j => j.status === 'processed');
             return {
@@ -484,7 +484,7 @@
             if (! jobMap[n]) { jobMap[n] = []; }
             jobMap[n].push(j);
         });
-        setThead(['Job', 'Amount tracked', 'Jobs failed', 'Unprocessed count', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
+        setThead(['Job', 'Tracked', 'Failed', 'Pending', 'Avg processing time', 'Avg wait time', 'Avg memory', 'Avg CPU']);
         setTbody(Object.entries(jobMap).map(([n, njobs]) => {
             const processed = njobs.filter(j => j.status === 'processed');
             return {
