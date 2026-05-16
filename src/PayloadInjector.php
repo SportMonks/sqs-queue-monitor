@@ -15,7 +15,7 @@ class PayloadInjector
     }
 
     /** @param array<string, mixed> $payload */
-    public function __invoke(string $connectionName, string $queue, array $payload): array
+    public function __invoke(string $connectionName, ?string $queue, array $payload): array
     {
         if (!in_array($connectionName, $this->monitoredConnections, true)) {
             return [];
